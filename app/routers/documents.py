@@ -6,8 +6,10 @@ from ..databases.database import get_vector_store, VectorStore
 from ..filters.embeddings import get_embeddings_model, chunk_text
 import PyPDF2
 import io
+from openai import OpenAI
 
 router = APIRouter()
+client = OpenAI()
 
 @router.post("/documents/upload", response_model=DocumentResponse)
 async def upload_document(file: UploadFile = File(...)):
@@ -45,15 +47,38 @@ async def create_document(document: Document):
 @router.post("/query", response_model=Answer)
 async def query_documents(query: Query):
     vector_store = get_vector_store()
+
     query_embedding = get_embeddings_model([query.question])[0]
-    relevant_chunks = vector_store.search(query_embedding)
-    
+
+    relevant_chunks = vector_store.search(query_embedding, k=5)
+
     if not relevant_chunks:
         raise HTTPException(status_code=404, detail="No relevant documents found")
-    sources = [DocumentResponse(id=chunk["id"], title=chunk["title"]) 
-              for chunk in relevant_chunks]
 
-    return Answer(answer="This is a mock answer.", sources=sources)
+    chunk_embeddings = [meta["embedding"] for meta in vector_store.chunk_metadata]
+    
+    from sentence_transformers import util
+
+    sims = util.cos_sim(query_embedding, chunk_embeddings)[0].tolist()
+
+    best_idx = int(max(range(len(sims)), key=lambda i: sims[i]))
+    best_score = sims[best_idx]
+
+    if best_score >= 0.65:  # threshold can be tuned
+        best_chunk = vector_store.chunk_metadata[best_idx]
+        sources = [DocumentResponse(id=best_chunk["doc_id"], title=best_chunk["title"])]
+        return Answer(answer=best_chunk["chunk"], sources=sources)
+
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant. Use retrieved docs if useful."},
+            {"role": "user", "content": query.question}
+        ]
+    )
+
+    sources = [DocumentResponse(id=chunk["id"], title=chunk["title"]) for chunk in relevant_chunks]
+    return Answer(answer=completion.choices[0].message.content, sources=sources)
 
 @router.get("/documents", response_model=DocumentList)
 async def list_documents():
