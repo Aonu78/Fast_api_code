@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.routers import documents
 from app.databases.database import initialize_vector_store, get_vector_store
-from app.filters.embeddings import get_embeddings, chunk_text
+from app.filters.embeddings import get_embeddings_model, chunk_text
 import os
 
 app = FastAPI(title="Document QA API")
@@ -38,7 +38,7 @@ async def startup_event():
                 # Check if the document is already in the store
                 if vector_store.get_document(doc_id) is None:
                     chunks = chunk_text(content)
-                    embeddings = get_embeddings(chunks)
+                    embeddings = get_embeddings_model(chunks)
                     vector_store.add_document(doc_id, title, chunks, embeddings)
 
 # Include routers
