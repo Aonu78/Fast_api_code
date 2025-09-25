@@ -1,0 +1,141 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Document QA</title>
+</head>
+<body>
+    <h1>Document QA</h1>
+
+    <h2>Upload Document</h2>
+    <input type="file" id="fileInput">
+    <button onclick="uploadDocument()">Upload</button>
+
+    <h2>Ask a Question</h2>
+    <input type="text" id="questionInput" placeholder="Enter your question">
+    <button onclick="askQuestion()">Ask</button>
+    <div id="answer"></div>
+
+    <h2>Indexed Documents</h2>
+    <ul id="documentList"></ul>
+
+    <h2>Document Content</h2>
+    <div id="documentContent" style="white-space: pre-wrap; border: 1px solid #ccc; padding: 10px; margin-top: 10px;"></div>
+
+    <script>
+        async function uploadDocument() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert("Please select a file to upload.");
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/documents/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                updateDocumentList();
+            } catch (error) {
+                console.error('Error uploading document:', error);
+                alert('Error uploading document. See console for details.');
+            }
+        }
+
+        async function askQuestion() {
+            const question = document.getElementById('questionInput').value;
+            if (!question) {
+                alert("Please enter a question.");
+                return;
+            }
+            try {
+                const response = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                document.getElementById('answer').innerText = data.answer;
+            } catch (error) {
+                console.error('Error asking question:', error);
+                alert('Error asking question. See console for details.');
+            }
+        }
+
+        async function updateDocumentList() {
+            try {
+                const response = await fetch('/api/documents');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                const documentList = document.getElementById('documentList');
+                documentList.innerHTML = '';
+                data.documents.forEach(doc => {
+                    const li = document.createElement('li');
+                    li.innerText = `${doc.title} (ID: ${doc.id}) `;
+                    
+                    const viewButton = document.createElement('button');
+                    viewButton.innerText = 'View';
+                    viewButton.onclick = () => viewDocument(doc.id);
+                    li.appendChild(viewButton);
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.innerText = 'Delete';
+                    deleteButton.onclick = () => deleteDocument(doc.id);
+                    li.appendChild(deleteButton);
+
+                    documentList.appendChild(li);
+                });
+            } catch (error) {
+                console.error('Error updating document list:', error);
+            }
+        }
+
+        async function viewDocument(docId) {
+            try {
+                const response = await fetch(`/api/documents/${docId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                document.getElementById('documentContent').innerText = data.content;
+            } catch (error) {
+                console.error('Error viewing document:', error);
+                document.getElementById('documentContent').innerText = 'Error loading document content.';
+            }
+        }
+
+        async function deleteDocument(docId) {
+            if (!confirm('Are you sure you want to delete this document?')) {
+                return;
+            }
+            try {
+                const response = await fetch(`/api/documents/${docId}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                document.getElementById('documentContent').innerText = '';
+                updateDocumentList();
+            } catch (error) {
+                console.error('Error deleting document:', error);
+                alert('Error deleting document. See console for details.');
+            }
+        }
+
+        // Initial load
+        updateDocumentList();
+    </script>
+</body>
+</html>
