@@ -4,7 +4,6 @@ import uuid
 from ..models.models import Document, DocumentResponse, Query, Answer, DocumentList, DocumentDetail
 from ..databases.database import get_vector_store, VectorStore
 from ..filters.embeddings import get_embeddings, chunk_text
-import openai
 import PyPDF2
 import io
 
@@ -75,25 +74,11 @@ async def query_documents(query: Query):
     if not relevant_chunks:
         raise HTTPException(status_code=404, detail="No relevant documents found")
     
-    # Prepare context for GPT
-    context = "\n".join([chunk["chunk"] for chunk in relevant_chunks])
-    
-    # Generate answer using GPT
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant. Answer the question based on the provided context."},
-            {"role": "user", "content": f"Context: {context}\n\nQuestion: {query.question}"}
-        ]
-    )
-    
-    answer = response.choices[0].message.content
-    
     # Prepare source documents
     sources = [DocumentResponse(id=chunk["id"], title=chunk["title"]) 
               for chunk in relevant_chunks]
-    
-    return Answer(answer=answer, sources=sources)
+
+    return Answer(answer="This is a mock answer.", sources=sources)
 
 @router.get("/documents", response_model=DocumentList)
 async def list_documents():
